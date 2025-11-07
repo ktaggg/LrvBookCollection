@@ -2,6 +2,8 @@
 
 namespace Database\Factories;
 
+use App\Models\Book;
+use App\Models\Category;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -19,12 +21,22 @@ class BookFactory extends Factory
         return [
             'title' => $this->faker->sentence(3),
             'author_id' => \App\Models\Author::inRandomOrder()->first()->id,
-            'category_id' => \App\Models\Category::inRandomOrder()->first()->id,
             'publisher' => $this->faker->company(),
             'year_published' => $this->faker->year(),
             'isbn' => $this->faker->unique()->isbn13(),
             'location_id' => \App\Models\Location::inRandomOrder()->first()->id,
             'status_id' => \App\Models\Status::inRandomOrder()->first()->id,
         ];
+    }
+
+    /**
+     * Configure the model factory.
+     */
+    public function configure(): static
+    {
+        return $this->afterCreating(function (Book $book) {
+            $categories = Category::inRandomOrder()->limit(rand(1, 3))->get();
+            $book->categories()->attach($categories);
+        });
     }
 }

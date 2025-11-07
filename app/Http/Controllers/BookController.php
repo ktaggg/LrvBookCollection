@@ -38,7 +38,7 @@ class BookController extends Controller
 
         $query = Book::query()->with([
             'author',
-            'category',
+            'categories',
             'location',
             'status',
         ])->withCount('ratings');
@@ -103,7 +103,22 @@ class BookController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'author_id' => 'required|integer|exists:authors,id',
+            'publisher' => 'required|string|max:255',
+            'published_year' => 'required|integer|min:1800|max:'.date('Y'),
+            'isbn' => 'required|string|max:255',
+            'location_id' => 'required|integer|exists:locations,id',
+            'status_id' => 'required|integer|exists:statuses,id',
+            'categories' => 'required|array',
+            'categories.*' => 'integer|exists:categories,id',
+        ]);
+
+        $book = Book::create($request->except('categories'));
+        $book->categories()->attach($request->categories);
+
+        return redirect()->route('books.index');
     }
 
     /**
@@ -127,7 +142,23 @@ class BookController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'author_id' => 'required|integer|exists:authors,id',
+            'publisher' => 'required|string|max:255',
+            'published_year' => 'required|integer|min:1800|max:'.date('Y'),
+            'isbn' => 'required|string|max:255',
+            'location_id' => 'required|integer|exists:locations,id',
+            'status_id' => 'required|integer|exists:statuses,id',
+            'categories' => 'required|array',
+            'categories.*' => 'integer|exists:categories,id',
+        ]);
+
+        $book = Book::findOrFail($id);
+        $book->update($request->except('categories'));
+        $book->categories()->sync($request->categories);
+
+        return redirect()->route('books.index');
     }
 
     /**

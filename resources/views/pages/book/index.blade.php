@@ -200,7 +200,12 @@
                     <tr>
                         <td>{{ $book->title }}</td>
                         <td>{{ $book->author->name }}</td>
-                        <td>{{ $book->category->name }}</td>
+                        <td>
+                            @foreach ($book->categories as $category)
+                                {{ $category->name }}@if (!$loop->last),
+                                @endif
+                            @endforeach
+                        </td>
                         <td class="text-center">{{ $book->isbn }}</td>
                         <td class="text-center">{{ $book->year_published }}</td>
                         <td>{{ ucfirst($book->status->name) }}</td>

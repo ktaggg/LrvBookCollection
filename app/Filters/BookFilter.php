@@ -20,7 +20,9 @@ class BookFilter extends QueryFilter
 
     public function category($category)
     {
-        return $this->builder->whereIn('category_id', $category);
+        return $this->builder->whereHas('categories', function ($query) use ($category) {
+            $query->whereIn('categories.id', $category);
+        });
     }
 
     public function author($author)
