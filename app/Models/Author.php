@@ -16,4 +16,9 @@ class Author extends Model
     {
         return $this->hasMany(Book::class);
     }
+
+    public function ratings()
+    {
+        return $this->hasManyThrough(Rating::class, Book::class);
+    }
 }

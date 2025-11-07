@@ -8,9 +8,21 @@ use Illuminate\Http\Request;
 
 class BookFilter extends QueryFilter
 {
+    public function apply(array $filters)
+    {
+        foreach ($filters as $key => $value) {
+            if (method_exists($this, $key) && !is_null($value)) {
+                $this->$key($value);
+            }
+        }
+        return $this->builder;
+    }
+
     public function category($category)
     {
-        return $this->builder->where('category_id', (array) $category);
+        return $this->builder->whereHas('categories', function ($query) use ($category) {
+            $query->whereIn('categories.id', $category);
+        });
     }
 
     public function author($author)
@@ -55,6 +67,15 @@ class BookFilter extends QueryFilter
                   ->from('ratings')
                   ->groupBy('book_id')
                   ->havingRaw('AVG(rating) <= ?', [$max]);
+        });
+    }
+
+    public function search($keyword) {
+        return $this->builder->where(function ($query) use ($keyword) {
+            $query->where('title', 'like', '%' . $keyword . '%')
+            ->orWhere('isbn', 'like', '%' . $keyword . '%')
+            ->orWhere('publisher', 'like', '%' . $keyword . '%')
+            ->orWhereHas('author', fn($query) => $query->where('name', 'like', '%' . $keyword . '%'));
         });
     }
 }

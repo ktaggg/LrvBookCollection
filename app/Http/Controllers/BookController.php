@@ -9,7 +9,6 @@ use App\Models\Category;
 use App\Models\Author;
 use App\Models\Location;
 use App\Models\Status;
-use Illuminate\Support\Facades\DB;
 
 class BookController extends Controller
 {
@@ -19,7 +18,8 @@ class BookController extends Controller
     public function index(BookFilter $filters, Request $request)
     {
         $request->validate([
-            'category' => 'nullable|integer|exists:categories,id',
+            'category' => 'nullable|array',
+            'category.*' => 'integer|exists:categories,id',
             'author' => 'nullable|integer|exists:authors,id',
             'year_from' => 'nullable|integer|min:1800|max:'.date('Y'),
             'year_to' => 'nullable|integer|min:1800|max:'.date('Y'),
@@ -38,10 +38,45 @@ class BookController extends Controller
 
         $query = Book::query()->with([
             'author',
-            'category',
+            'categories',
             'location',
-            'status'
-        ]);
+            'status',
+        ])->withCount('ratings');
+
+        $sortBy = $request->input('sort_by');
+        $sortOrder = $request->input('sort_order');
+
+        switch ($sortBy) {
+            case 'title':
+                $query->orderBy('title', $sortOrder ?? 'asc');
+                break;
+            case 'votes':
+                $query->orderBy('ratings_count', $sortOrder ?? 'desc');
+                break;
+            case 'ratings_avg_rating':
+                $query->withAvg('ratings', 'rating')
+                ->orderBy('ratings_avg_rating', $sortOrder ?? 'desc');
+                break;
+            case 'popularity':
+                $query->withCount(['ratings as recent_votes' => function($q) {
+                    $q->where('created_at', '>=', now()->subDays(30));
+                }])->orderBy('recent_votes', $sortOrder ?? 'desc');
+                break;
+            default:
+        }
+
+        $query->withAvg('ratings', 'rating');
+        $query->withAvg(['ratings as rating_7_days_ago' => function($q) {
+            $q->where('created_at', '<', now()->subDays(7));
+        }], 'rating');
+
+        $query->selectRaw('
+            CASE
+                WHEN (SELECT AVG(rating) FROM ratings WHERE book_id = books.id AND created_at >= ?) >
+                (SELECT AVG(rating) FROM ratings WHERE book_id = books.id AND created_at < ?)
+                THEN 1 ELSE 0
+            END as is_trending
+        ', [now()->subDays(7), now()->subDays(7)]);
 
         $filters = new BookFilter($query);
         $query = $filters->apply($request->all());
@@ -50,7 +85,7 @@ class BookController extends Controller
             ->orderBy('ratings_avg_rating', 'asc');
         }
 
-        $books = $query->paginate(200);
+        $books = $query->paginate(50);
 
         return view('pages.book.index', compact('books', 'categories', 'authors', 'locations', 'statuses'));
     }
@@ -68,7 +103,22 @@ class BookController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'author_id' => 'required|integer|exists:authors,id',
+            'publisher' => 'required|string|max:255',
+            'published_year' => 'required|integer|min:1800|max:'.date('Y'),
+            'isbn' => 'required|string|max:255',
+            'location_id' => 'required|integer|exists:locations,id',
+            'status_id' => 'required|integer|exists:statuses,id',
+            'categories' => 'required|array',
+            'categories.*' => 'integer|exists:categories,id',
+        ]);
+
+        $book = Book::create($request->except('categories'));
+        $book->categories()->attach($request->categories);
+
+        return redirect()->route('books.index');
     }
 
     /**
@@ -92,7 +142,23 @@ class BookController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'author_id' => 'required|integer|exists:authors,id',
+            'publisher' => 'required|string|max:255',
+            'published_year' => 'required|integer|min:1800|max:'.date('Y'),
+            'isbn' => 'required|string|max:255',
+            'location_id' => 'required|integer|exists:locations,id',
+            'status_id' => 'required|integer|exists:statuses,id',
+            'categories' => 'required|array',
+            'categories.*' => 'integer|exists:categories,id',
+        ]);
+
+        $book = Book::findOrFail($id);
+        $book->update($request->except('categories'));
+        $book->categories()->sync($request->categories);
+
+        return redirect()->route('books.index');
     }
 
     /**
